@@ -4,11 +4,16 @@
 #include <commdlg.h>
 
 Renderer::Renderer(int width, int height, const char* title) 
-    : width(width), height(height), camera(glm::vec3(0.0f, 0.0f, 3.0f)), 
+    : width(width), height(height), 
+      camera(glm::vec3(0.0f, 0.0f, 3.0f)), // Revert to original camera position
       lastX(width/2.0f), lastY(height/2.0f), firstMouse(true),
       deltaTime(0.0f), lastFrame(0.0f),
-      lightPos(glm::vec3(1.2f, 1.0f, 2.0f)), lightColor(glm::vec3(1.0f)),
-      ambientStrength(0.1f), diffuseStrength(0.5f), specularStrength(0.5f), shininess(32.0f),
+      lightPos(glm::vec3(1.2f, 1.0f, 2.0f)), // Adjust light position for better visibility
+      lightColor(glm::vec3(1.0f)),
+      ambientStrength(0.2f), // Increase ambient for better base visibility
+      diffuseStrength(0.8f),
+      specularStrength(0.5f), 
+      shininess(32.0f),
       model(nullptr) {
     
     initGLFW();
@@ -20,6 +25,9 @@ Renderer::Renderer(int width, int height, const char* title)
     }
     glfwMakeContextCurrent(window);
 
+    // Set cursor mode AFTER window creation
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
     initGLAD();
     initImGui();
 
@@ -27,6 +35,7 @@ Renderer::Renderer(int width, int height, const char* title)
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
     glfwSetCursorPosCallback(window, mouseCallback);
     glfwSetScrollCallback(window, scrollCallback);
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);  // Add mouse button callback
     glfwSetWindowUserPointer(window, this);
 
     // Configure global OpenGL state
@@ -46,6 +55,15 @@ void Renderer::Run() {
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
+        // Poll events before ImGui frame
+        glfwPollEvents();
+
+        // Start ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // Process input after ImGui frame starts
         processInput();
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -71,15 +89,16 @@ void Renderer::Run() {
         shader->setFloat("diffuseStrength", diffuseStrength);
         shader->setFloat("specularStrength", specularStrength);
         shader->setFloat("shininess", shininess);
+        
+        // Set default object color (light gray)
+        shader->setVec3("objectColor", glm::vec3(0.8f, 0.8f, 0.8f));
 
         if (model != nullptr) {
             model->Draw(*shader);
         }
 
         renderUI();
-
         glfwSwapBuffers(window);
-        glfwPollEvents();
     }
 }
 
@@ -88,6 +107,9 @@ void Renderer::initGLFW() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    // Enable cursor
+    glfwWindowHint(GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 }
 
 void Renderer::initGLAD() {
@@ -100,18 +122,35 @@ void Renderer::initGLAD() {
 void Renderer::initImGui() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO& io = ImGui::GetIO();
+    
+    // Enable keyboard navigation
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    // Setup style
     ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 4.0f;
+    style.FrameRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.FrameBorderSize = 1.0f;
+
+    // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+
+    // Set initial window positions
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
 }
 
 void Renderer::processInput() {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
+    // Only process keyboard input if ImGui doesn't want it
+    ImGuiIO& io = ImGui::GetIO();
+    if (!io.WantCaptureKeyboard) {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
 
-    // Skip camera movement if ImGui is capturing keyboard
-    if (!ImGui::GetIO().WantCaptureKeyboard) {
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
             camera.ProcessKeyboard(FORWARD, deltaTime);
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -150,40 +189,47 @@ std::string Renderer::openFileDialog() {
 }
 
 void Renderer::renderUI() {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
     // Model loading window
-    ImGui::Begin("Model Control");
-    if (ImGui::Button("Load Model")) {
-        std::string filePath = openFileDialog();
-        if (!filePath.empty()) {
-            loadModel(filePath.c_str());
+    {
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(250, 100), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Model Control", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        
+        if (ImGui::Button("Load Model", ImVec2(120, 0))) {
+            std::string filePath = openFileDialog();
+            if (!filePath.empty()) {
+                loadModel(filePath.c_str());
+            }
         }
+        
+        ImGui::SameLine();
+        if (model == nullptr) {
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "No model");
+        } else if (!model->isValid()) {
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Load failed");
+        } else {
+            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Loaded");
+        }
+        
+        ImGui::End();
     }
-    
-    if (model == nullptr) {
-        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "No model loaded");
-    } else if (!model->isValid()) {
-        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Model failed to load");
-    } else {
-        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Model loaded successfully");
-    }
-    ImGui::End();
 
     // Lighting controls window
-    ImGui::Begin("Lighting Controls");
-    
-    ImGui::ColorEdit3("Light Color", &lightColor[0]);
-    ImGui::DragFloat3("Light Position", &lightPos[0], 0.1f);
-    
-    ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0.0f, 1.0f);
-    ImGui::SliderFloat("Diffuse Strength", &diffuseStrength, 0.0f, 1.0f);
-    ImGui::SliderFloat("Specular Strength", &specularStrength, 0.0f, 1.0f);
-    ImGui::SliderFloat("Shininess", &shininess, 1.0f, 256.0f);
-    
-    ImGui::End();
+    {
+        ImGui::SetNextWindowPos(ImVec2(10, 120), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Lighting Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        
+        ImGui::ColorEdit3("Light Color", &lightColor[0]);
+        ImGui::DragFloat3("Light Position", &lightPos[0], 0.1f);
+        
+        ImGui::SliderFloat("Ambient", &ambientStrength, 0.0f, 1.0f);
+        ImGui::SliderFloat("Diffuse", &diffuseStrength, 0.0f, 1.0f);
+        ImGui::SliderFloat("Specular", &specularStrength, 0.0f, 1.0f);
+        ImGui::SliderFloat("Shininess", &shininess, 1.0f, 256.0f);
+        
+        ImGui::End();
+    }
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -205,14 +251,37 @@ void Renderer::framebufferSizeCallback(GLFWwindow* window, int width, int height
     glViewport(0, 0, width, height);
 }
 
+void Renderer::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    Renderer* renderer = static_cast<Renderer*>(glfwGetWindowUserPointer(window));
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Update ImGui's mouse button state
+    if (action == GLFW_PRESS && button >= 0 && button < 5) {
+        io.MouseDown[button] = true;
+    }
+    else if (action == GLFW_RELEASE && button >= 0 && button < 5) {
+        io.MouseDown[button] = false;
+    }
+}
+
 void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
     Renderer* renderer = static_cast<Renderer*>(glfwGetWindowUserPointer(window));
-    
-    // Skip camera movement if ImGui is capturing mouse
-    if (ImGui::GetIO().WantCaptureMouse) {
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Update ImGui mouse position
+    io.MousePos = ImVec2((float)xposIn, (float)yposIn);
+
+    // If ImGui wants to capture mouse, don't process camera movement
+    if (io.WantCaptureMouse) {
         return;
     }
-    
+
+    // Only process camera movement if right mouse button is pressed
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) != GLFW_PRESS) {
+        renderer->firstMouse = true;
+        return;
+    }
+
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
@@ -220,6 +289,7 @@ void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
         renderer->lastX = xpos;
         renderer->lastY = ypos;
         renderer->firstMouse = false;
+        return;
     }
 
     float xoffset = xpos - renderer->lastX;
