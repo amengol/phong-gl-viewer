@@ -49,8 +49,9 @@ bool Model::loadModel(std::string path) {
         return false;
     }
     
-    // For GLB files, we don't need the directory as textures are embedded
-    directory = "";
+    // Get the directory path for external textures
+    directory = path.substr(0, path.find_last_of("/\\"));
+    std::cout << "Model directory: " << directory << std::endl;
     std::cout << "Number of materials: " << scene->mNumMaterials << std::endl;
     std::cout << "Number of meshes: " << scene->mNumMeshes << std::endl;
     std::cout << "Number of embedded textures: " << scene->mNumTextures << std::endl;
@@ -96,6 +97,20 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
         std::cout << "Processing material index: " << mesh->mMaterialIndex << std::endl;
         aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
         
+        // Get material colors
+        aiColor4D diffuse(1.0f, 1.0f, 1.0f, 1.0f);
+        aiColor4D specular(1.0f, 1.0f, 1.0f, 1.0f);
+        float shininess = 32.0f;
+
+        aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &diffuse);
+        aiGetMaterialColor(material, AI_MATKEY_COLOR_SPECULAR, &specular);
+        aiGetMaterialFloat(material, AI_MATKEY_SHININESS, &shininess);
+
+        std::cout << "Material properties:" << std::endl;
+        std::cout << "Diffuse: " << diffuse.r << ", " << diffuse.g << ", " << diffuse.b << std::endl;
+        std::cout << "Specular: " << specular.r << ", " << specular.g << ", " << specular.b << std::endl;
+        std::cout << "Shininess: " << shininess << std::endl;
+        
         std::vector<Texture> diffuseMaps = loadMaterialTextures(material, 
             aiTextureType_DIFFUSE, "texture_diffuse");
         textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
@@ -103,8 +118,28 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
         std::vector<Texture> specularMaps = loadMaterialTextures(material, 
             aiTextureType_SPECULAR, "texture_specular");
         textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+
+        // Store material properties in first texture
+        if (!textures.empty()) {
+            textures[0].diffuseColor = glm::vec3(diffuse.r, diffuse.g, diffuse.b);
+        } else {
+            // If no textures, create a dummy texture to store the material color
+            Texture colorTexture;
+            colorTexture.id = 0; // No texture
+            colorTexture.type = "texture_diffuse";
+            colorTexture.path = ""; // Empty path since it's just a color
+            colorTexture.diffuseColor = glm::vec3(diffuse.r, diffuse.g, diffuse.b);
+            textures.push_back(colorTexture);
+        }
     } else {
         std::cout << "Mesh has no material" << std::endl;
+        // Create default material
+        Texture defaultTexture;
+        defaultTexture.id = 0;
+        defaultTexture.type = "texture_diffuse";
+        defaultTexture.path = "";
+        defaultTexture.diffuseColor = glm::vec3(0.8f); // Default gray color
+        textures.push_back(defaultTexture);
     }
     
     std::cout << "Mesh processed with " << vertices.size() << " vertices, " << indices.size() << " indices, and " << textures.size() << " textures" << std::endl;
@@ -218,10 +253,9 @@ unsigned int Model::TextureFromFile(const char *path, const std::string &directo
             // Compressed texture data
             if (strncmp(texture->achFormatHint, "png", 3) == 0 ||
                 strncmp(texture->achFormatHint, "jpg", 3) == 0) {
-                // Handle compressed image formats
+                // Load compressed image formats with original number of components
                 data = stbi_load_from_memory(reinterpret_cast<unsigned char*>(texture->pcData), 
-                                           texture->mWidth, &width, &height, &nrComponents, 4);
-                nrComponents = 4; // Force RGBA
+                                           texture->mWidth, &width, &height, &nrComponents, 0);
             } else {
                 std::cout << "Unsupported texture format: " << texture->achFormatHint << std::endl;
                 return textureID;
@@ -231,12 +265,20 @@ unsigned int Model::TextureFromFile(const char *path, const std::string &directo
             width = texture->mWidth;
             height = texture->mHeight;
             data = reinterpret_cast<unsigned char*>(texture->pcData);
-            nrComponents = 4; // Assuming RGBA
+            nrComponents = 4; // Assuming RGBA for raw data
         }
 
         if (data) {
+            GLenum format;
+            if (nrComponents == 1)
+                format = GL_RED;
+            else if (nrComponents == 3)
+                format = GL_RGB;
+            else if (nrComponents == 4)
+                format = GL_RGBA;
+
             glBindTexture(GL_TEXTURE_2D, textureID);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
 
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -250,46 +292,45 @@ unsigned int Model::TextureFromFile(const char *path, const std::string &directo
             if (texture->mHeight == 0) { // Only free if we used stbi_load
                 stbi_image_free(data);
             }
-        } else {
-            std::cout << "Failed to load embedded texture " << textureIndex << std::endl;
         }
-        return textureID;
+        else {
+            std::cout << "Texture failed to load" << std::endl;
+        }
+    } else {
+        // Handle external texture file
+        std::string filename = directory.empty() ? std::string(path) : directory + '/' + std::string(path);
+        std::cout << "Loading external texture: " << filename << std::endl;
+
+        int width, height, nrComponents;
+        unsigned char *data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
+        
+        if (data) {
+            GLenum format;
+            if (nrComponents == 1)
+                format = GL_RED;
+            else if (nrComponents == 3)
+                format = GL_RGB;
+            else if (nrComponents == 4)
+                format = GL_RGBA;
+
+            glBindTexture(GL_TEXTURE_2D, textureID);
+            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            std::cout << "External texture loaded successfully: " << width << "x" << height 
+                      << " with " << nrComponents << " components" << std::endl;
+
+            stbi_image_free(data);
+        }
+        else {
+            std::cout << "Failed to load texture: " << filename << std::endl;
+            std::cout << "STB Error: " << stbi_failure_reason() << std::endl;
+        }
     }
-
-    // Regular external texture loading
-    std::string filename = std::string(path);
-    filename = directory + '/' + filename;
-    std::cout << "Loading external texture from: " << filename << std::endl;
-
-    int width, height, nrComponents;
-    unsigned char *data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
-    if (data) {
-        GLenum format;
-        if (nrComponents == 1)
-            format = GL_RED;
-        else if (nrComponents == 3)
-            format = GL_RGB;
-        else if (nrComponents == 4)
-            format = GL_RGBA;
-
-        std::cout << "External texture loaded successfully: " << width << "x" << height 
-                  << " with " << nrComponents << " components" << std::endl;
-
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        stbi_image_free(data);
-    }
-    else {
-        std::cout << "External texture failed to load at path: " << filename << std::endl;
-        stbi_image_free(data);
-    }
-
     return textureID;
 } 

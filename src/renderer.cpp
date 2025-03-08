@@ -17,7 +17,8 @@ Renderer::Renderer(int width, int height, const char* title)
       specularStrength(0.5f), 
       shininess(32.0f),
       model(nullptr),
-      modelScale(glm::vec3(1.0f)) {
+      modelScale(glm::vec3(1.0f)),
+      shader(nullptr) { // Initialize shader pointer to nullptr
     
     initGLFW();
     window = glfwCreateWindow(width, height, title, NULL, NULL);
@@ -40,12 +41,6 @@ Renderer::Renderer(int width, int height, const char* title)
     glfwSetScrollCallback(window, scrollCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);  // Add mouse button callback
     glfwSetWindowUserPointer(window, this);
-
-    // Configure global OpenGL state
-    glEnable(GL_DEPTH_TEST);
-
-    // Create and compile shaders
-    shader = new Shader("shaders/phong.vert", "shaders/phong.frag");
 }
 
 Renderer::~Renderer() {
@@ -69,7 +64,8 @@ void Renderer::Run() {
         // Process input after ImGui frame starts
         processInput();
 
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        // Clear with a neutral gray background
+        glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         shader->use();
@@ -125,6 +121,23 @@ void Renderer::initGLAD() {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return;
     }
+    
+    // Configure global OpenGL state
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Enable seamless cubemap sampling
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+    
+    // Set default texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Create and compile shaders
+    shader = new Shader("shaders/phong.vert", "shaders/phong.frag");
 }
 
 void Renderer::initImGui() {

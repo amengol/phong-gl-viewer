@@ -16,6 +16,7 @@ struct Texture {
     unsigned int id;
     std::string type;
     std::string path;
+    glm::vec3 diffuseColor = glm::vec3(1.0f); // Default to white
 };
 
 class Mesh {
