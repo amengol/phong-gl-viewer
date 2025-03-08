@@ -2,7 +2,10 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 #include <glm/glm.hpp>
+#include <string>
 #include "camera.h"
 #include "shader.h"
 #include "model.h"
@@ -16,11 +19,12 @@ public:
     ~Renderer();
     
     void Run();
+    void loadModel(const char* path);
 
 private:
     GLFWwindow* window;
     Camera camera;
-    Model* model;
+    Model* model = nullptr;
     Shader* shader;
 
     // Lighting properties
@@ -46,6 +50,7 @@ private:
     void processInput();
     void renderUI();
     void cleanup();
+    std::string openFileDialog();
 
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
     static void mouseCallback(GLFWwindow* window, double xpos, double ypos);

@@ -1,12 +1,15 @@
 #include "renderer.h"
 #include <iostream>
+#include <windows.h>
+#include <commdlg.h>
 
 Renderer::Renderer(int width, int height, const char* title) 
     : width(width), height(height), camera(glm::vec3(0.0f, 0.0f, 3.0f)), 
       lastX(width/2.0f), lastY(height/2.0f), firstMouse(true),
       deltaTime(0.0f), lastFrame(0.0f),
       lightPos(glm::vec3(1.2f, 1.0f, 2.0f)), lightColor(glm::vec3(1.0f)),
-      ambientStrength(0.1f), diffuseStrength(0.5f), specularStrength(0.5f), shininess(32.0f) {
+      ambientStrength(0.1f), diffuseStrength(0.5f), specularStrength(0.5f), shininess(32.0f),
+      model(nullptr) {
     
     initGLFW();
     window = glfwCreateWindow(width, height, title, NULL, NULL);
@@ -107,18 +110,43 @@ void Renderer::processInput() {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-        camera.ProcessKeyboard(UP, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-        camera.ProcessKeyboard(DOWN, deltaTime);
+    // Skip camera movement if ImGui is capturing keyboard
+    if (!ImGui::GetIO().WantCaptureKeyboard) {
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            camera.ProcessKeyboard(FORWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            camera.ProcessKeyboard(BACKWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            camera.ProcessKeyboard(LEFT, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            camera.ProcessKeyboard(RIGHT, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+            camera.ProcessKeyboard(UP, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+            camera.ProcessKeyboard(DOWN, deltaTime);
+    }
+}
+
+std::string Renderer::openFileDialog() {
+    OPENFILENAMEA ofn;
+    char fileName[MAX_PATH] = "";
+    ZeroMemory(&ofn, sizeof(ofn));
+    
+    ofn.lStructSize = sizeof(OPENFILENAMEA);
+    ofn.hwndOwner = glfwGetWin32Window(window);
+    ofn.lpstrFile = fileName;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrFilter = "3D Models\0*.obj;*.fbx;*.gltf;*.glb\0All Files\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+    if (GetOpenFileNameA(&ofn)) {
+        return std::string(fileName);
+    }
+    return "";
 }
 
 void Renderer::renderUI() {
@@ -126,6 +154,25 @@ void Renderer::renderUI() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
+    // Model loading window
+    ImGui::Begin("Model Control");
+    if (ImGui::Button("Load Model")) {
+        std::string filePath = openFileDialog();
+        if (!filePath.empty()) {
+            loadModel(filePath.c_str());
+        }
+    }
+    
+    if (model == nullptr) {
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "No model loaded");
+    } else if (!model->isValid()) {
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Model failed to load");
+    } else {
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Model loaded successfully");
+    }
+    ImGui::End();
+
+    // Lighting controls window
     ImGui::Begin("Lighting Controls");
     
     ImGui::ColorEdit3("Light Color", &lightColor[0]);
@@ -161,6 +208,11 @@ void Renderer::framebufferSizeCallback(GLFWwindow* window, int width, int height
 void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
     Renderer* renderer = static_cast<Renderer*>(glfwGetWindowUserPointer(window));
     
+    // Skip camera movement if ImGui is capturing mouse
+    if (ImGui::GetIO().WantCaptureMouse) {
+        return;
+    }
+    
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
@@ -182,4 +234,22 @@ void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
 void Renderer::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     Renderer* renderer = static_cast<Renderer*>(glfwGetWindowUserPointer(window));
     renderer->camera.ProcessMouseScroll(static_cast<float>(yoffset));
+}
+
+void Renderer::loadModel(const char* path) {
+    // Delete existing model if any
+    if (model != nullptr) {
+        delete model;
+        model = nullptr;
+    }
+
+    // Create new model
+    model = new Model(path);
+    
+    // Check if model loaded successfully
+    if (!model->isValid()) {
+        delete model;
+        model = nullptr;
+        std::cerr << "ERROR::RENDERER: Failed to load model from path: " << path << std::endl;
+    }
 } 
