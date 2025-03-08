@@ -232,7 +232,7 @@ void Renderer::renderUI() {
         } else if (!model->isValid()) {
             ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Load failed");
         } else {
-            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Loaded");
+            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Loaded: %s", model->getFilename().c_str());
         }
         
         ImGui::End();

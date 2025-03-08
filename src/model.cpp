@@ -31,6 +31,10 @@ void Model::Draw(Shader &shader) {
 bool Model::loadModel(std::string path) {
     std::cout << "Loading model from path: " << path << std::endl;
     
+    // Store the filename
+    size_t last_slash = path.find_last_of("/\\");
+    filename = (last_slash == std::string::npos) ? path : path.substr(last_slash + 1);
+    
     // Configure Assimp to handle material textures properly
     importer.SetPropertyInteger(AI_CONFIG_IMPORT_FBX_READ_TEXTURES, 1);
     importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);

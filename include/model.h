@@ -23,10 +23,12 @@ public:
     glm::vec3 getSize() const { return maxBounds - minBounds; }
     glm::vec3 getMinBounds() const { return minBounds; }
     glm::vec3 getMaxBounds() const { return maxBounds; }
+    std::string getFilename() const { return filename; }
 
 private:
     std::vector<Mesh> meshes;
     std::string directory;
+    std::string filename;
     bool m_isValid = false;
     std::vector<Texture> textures_loaded;
     Assimp::Importer importer;  // Keep importer alive
