@@ -31,11 +31,21 @@ void Mesh::setupMesh() {
 }
 
 void Mesh::Draw(Shader &shader) {
+    // Set material properties from the first texture
+    if (!textures.empty()) {
+        shader.setVec3("objectColor", textures[0].diffuseColor);
+        shader.setVec3("specularColor", textures[0].specularColor);
+        shader.setFloat("shininess", textures[0].shininess);
+    }
+
+    // Bind appropriate textures
     unsigned int diffuseNr = 1;
     unsigned int specularNr = 1;
-
+    
     for(unsigned int i = 0; i < textures.size(); i++) {
-        glActiveTexture(GL_TEXTURE0 + i);
+        glActiveTexture(GL_TEXTURE0 + i); // Activate proper texture unit before binding
+        
+        // Retrieve texture number (the N in diffuse_textureN)
         std::string number;
         std::string name = textures[i].type;
         if(name == "texture_diffuse")
@@ -46,10 +56,12 @@ void Mesh::Draw(Shader &shader) {
         shader.setInt((name + number).c_str(), i);
         glBindTexture(GL_TEXTURE_2D, textures[i].id);
     }
-    glActiveTexture(GL_TEXTURE0);
-
-    // draw mesh
+    
+    // Draw mesh
     glBindVertexArray(VAO);
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
+    
+    // Reset to defaults
+    glActiveTexture(GL_TEXTURE0);
 } 

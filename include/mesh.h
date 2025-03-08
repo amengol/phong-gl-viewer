@@ -17,6 +17,8 @@ struct Texture {
     std::string type;
     std::string path;
     glm::vec3 diffuseColor = glm::vec3(1.0f); // Default to white
+    glm::vec3 specularColor = glm::vec3(1.0f); // Default to white
+    float shininess = 32.0f; // Default shininess
 };
 
 class Mesh {
