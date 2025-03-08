@@ -1,25 +1,49 @@
 #include "model.h"
 
 Model::Model(const char* path) {
-    loadModel(path);
+    if (!path) {
+        std::cerr << "ERROR::MODEL::CONSTRUCTOR: Null path provided" << std::endl;
+        m_isValid = false;
+        return;
+    }
+    m_isValid = loadModel(path);
 }
 
 void Model::Draw(Shader &shader) {
-    for(unsigned int i = 0; i < meshes.size(); i++)
-        meshes[i].Draw(shader);
+    if (!m_isValid || meshes.empty()) {
+        // Silently return if model isn't valid or has no meshes
+        return;
+    }
+
+    for (auto& mesh : meshes) {
+        mesh.Draw(shader);
+    }
 }
 
-void Model::loadModel(std::string path) {
+bool Model::loadModel(std::string path) {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs);
     
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
-        std::cout << "ERROR::ASSIMP::" << importer.GetErrorString() << std::endl;
-        return;
+        std::cerr << "ERROR::ASSIMP::" << importer.GetErrorString() << std::endl;
+        return false;
     }
     directory = path.substr(0, path.find_last_of('/'));
 
-    processNode(scene->mRootNode, scene);
+    try {
+        processNode(scene->mRootNode, scene);
+    } catch (const std::exception& e) {
+        std::cerr << "ERROR::MODEL::LOADING: Exception while processing model: " << e.what() << std::endl;
+        return false;
+    }
+
+    // Verify we loaded at least one mesh
+    if (meshes.empty()) {
+        std::cerr << "ERROR::MODEL::LOADING: No meshes were loaded from the model" << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 void Model::processNode(aiNode *node, const aiScene *scene) {

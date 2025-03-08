@@ -14,12 +14,14 @@ class Model {
 public:
     Model(const char* path);
     void Draw(Shader &shader);
+    bool isValid() const { return m_isValid; }
 
 private:
     std::vector<Mesh> meshes;
     std::string directory;
+    bool m_isValid = false;
 
-    void loadModel(std::string path);
+    bool loadModel(std::string path);
     void processNode(aiNode *node, const aiScene *scene);
     Mesh processMesh(aiMesh *mesh, const aiScene *scene);
     std::vector<Vertex> getVertices(aiMesh *mesh);
