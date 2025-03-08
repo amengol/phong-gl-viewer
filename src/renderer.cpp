@@ -339,19 +339,40 @@ void Renderer::loadModel(const char* path) {
     // Calculate the largest dimension of the model
     float maxDimension = std::max(std::max(modelSize.x, modelSize.y), modelSize.z);
     
-    // Calculate appropriate distance based on model size and field of view
-    float distance = maxDimension * 1.5f; // 1.5x the largest dimension
-    
-    // Position camera
-    camera.Position = modelCenter + glm::vec3(0.0f, modelSize.y * 0.5f, distance);
-    camera.Front = glm::normalize(modelCenter - camera.Position);
-    camera.updateCameraVectors();
-    
-    // Calculate appropriate scale (to make model fit in view)
-    float scale = 2.0f / maxDimension;  // Scale to make the largest dimension 2 units
+    // Calculate scale based on the target size we want in view (3 units)
+    float targetSize = 3.0f;
+    float scale = targetSize / maxDimension;
     modelScale = glm::vec3(scale);
+
+    // Calculate appropriate distance based on model size and field of view
+    float fovY = camera.Zoom; // In degrees
+    // We want the model to occupy about 75% of the view height
+    float targetViewSize = targetSize * 1.33f; // Make view slightly larger than model
+    float distance = (targetViewSize) / (2.0f * tan(glm::radians(fovY/2.0f))); 
+
+    // Calculate camera height based on model height
+    float heightRatio = modelSize.y / maxDimension; // How tall is the model relative to its largest dimension
+    float heightOffset = distance * 0.3f * heightRatio; // Adjust camera height based on model proportions
+    
+    // Position camera to look at model from front-right
+    float angle = glm::radians(45.0f); // 45 degrees from front
+    camera.Position = modelCenter + glm::vec3(
+        distance * cos(angle),
+        heightOffset, // Dynamic height based on model proportions
+        distance * sin(angle)
+    );
+    
+    // Point camera directly at model center
+    camera.Front = glm::normalize(modelCenter - camera.Position);
+    camera.WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+    camera.updateCameraVectors();
+
+    // Adjust light position relative to model size
+    lightPos = modelCenter + glm::vec3(distance * 0.5f, distance * 0.7f, distance * 0.5f);
     
     std::cout << "Model loaded with dimensions: " << modelSize.x << " x " << modelSize.y << " x " << modelSize.z << std::endl;
+    std::cout << "Model scaled by: " << scale << " to target size of " << targetSize << " units" << std::endl;
     std::cout << "Camera positioned at: " << camera.Position.x << ", " << camera.Position.y << ", " << camera.Position.z << std::endl;
-    std::cout << "Model scale set to: " << scale << std::endl;
+    std::cout << "Height ratio: " << heightRatio << ", Height offset: " << heightOffset << std::endl;
+    std::cout << "Viewing distance: " << distance << " units" << std::endl;
 } 
