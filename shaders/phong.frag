@@ -17,8 +17,16 @@ uniform float diffuseStrength;
 uniform float specularStrength;
 uniform float shininess;
 
+// Texture samplers
+uniform sampler2D texture_diffuse1;
+uniform sampler2D texture_specular1;
+uniform bool hasTexture;
+
 void main()
 {
+    // Get base color (either from texture or uniform)
+    vec3 baseColor = hasTexture ? texture(texture_diffuse1, TexCoords).rgb : objectColor;
+    
     // Ambient
     vec3 ambient = ambientStrength * lightColor;
 
@@ -33,8 +41,12 @@ void main()
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
     vec3 specular = specularStrength * spec * lightColor;
+    
+    if (hasTexture) {
+        specular *= texture(texture_specular1, TexCoords).rgb;
+    }
 
     // Final color
-    vec3 result = (ambient + diffuse + specular) * objectColor;
+    vec3 result = (ambient + diffuse + specular) * baseColor;
     FragColor = vec4(result, 1.0);
 } 
