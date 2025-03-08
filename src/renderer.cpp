@@ -5,16 +5,19 @@
 
 Renderer::Renderer(int width, int height, const char* title) 
     : width(width), height(height), 
-      camera(glm::vec3(0.0f, 0.0f, 3.0f)), // Revert to original camera position
-      lastX(width/2.0f), lastY(height/2.0f), firstMouse(true),
+      camera(glm::vec3(0.0f, 2.0f, 8.0f)), // Move camera back and up a bit
+      lastX(static_cast<float>(width)/2.0f), 
+      lastY(static_cast<float>(height)/2.0f),
+      firstMouse(true),
       deltaTime(0.0f), lastFrame(0.0f),
-      lightPos(glm::vec3(1.2f, 1.0f, 2.0f)), // Adjust light position for better visibility
+      lightPos(glm::vec3(2.0f, 4.0f, 2.0f)), // Adjust light position for better lighting
       lightColor(glm::vec3(1.0f)),
-      ambientStrength(0.2f), // Increase ambient for better base visibility
+      ambientStrength(0.2f),
       diffuseStrength(0.8f),
       specularStrength(0.5f), 
       shininess(32.0f),
-      model(nullptr) {
+      model(nullptr),
+      modelScale(glm::vec3(1.0f)) {
     
     initGLFW();
     window = glfwCreateWindow(width, height, title, NULL, NULL);
@@ -72,13 +75,18 @@ void Renderer::Run() {
         shader->use();
 
         // View/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)width / (float)height, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)width / (float)height, 0.1f, 1000.0f);
         glm::mat4 view = camera.GetViewMatrix();
         shader->setMat4("projection", projection);
         shader->setMat4("view", view);
 
         // World transformation
         glm::mat4 modelMatrix = glm::mat4(1.0f);
+        if (model != nullptr) {
+            modelMatrix = glm::scale(modelMatrix, modelScale);
+            // Center the model
+            modelMatrix = glm::translate(modelMatrix, -model->getCenter());
+        }
         shader->setMat4("model", modelMatrix);
 
         // Light properties
@@ -269,7 +277,7 @@ void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
     ImGuiIO& io = ImGui::GetIO();
 
     // Update ImGui mouse position
-    io.MousePos = ImVec2((float)xposIn, (float)yposIn);
+    io.MousePos = ImVec2(static_cast<float>(xposIn), static_cast<float>(yposIn));
 
     // If ImGui wants to capture mouse, don't process camera movement
     if (io.WantCaptureMouse) {
@@ -321,5 +329,29 @@ void Renderer::loadModel(const char* path) {
         delete model;
         model = nullptr;
         std::cerr << "ERROR::RENDERER: Failed to load model from path: " << path << std::endl;
+        return;
     }
+
+    // Calculate appropriate camera position and model scale
+    glm::vec3 modelSize = model->getSize();
+    glm::vec3 modelCenter = model->getCenter();
+    
+    // Calculate the largest dimension of the model
+    float maxDimension = std::max(std::max(modelSize.x, modelSize.y), modelSize.z);
+    
+    // Calculate appropriate distance based on model size and field of view
+    float distance = maxDimension * 1.5f; // 1.5x the largest dimension
+    
+    // Position camera
+    camera.Position = modelCenter + glm::vec3(0.0f, modelSize.y * 0.5f, distance);
+    camera.Front = glm::normalize(modelCenter - camera.Position);
+    camera.updateCameraVectors();
+    
+    // Calculate appropriate scale (to make model fit in view)
+    float scale = 2.0f / maxDimension;  // Scale to make the largest dimension 2 units
+    modelScale = glm::vec3(scale);
+    
+    std::cout << "Model loaded with dimensions: " << modelSize.x << " x " << modelSize.y << " x " << modelSize.z << std::endl;
+    std::cout << "Camera positioned at: " << camera.Position.x << ", " << camera.Position.y << ", " << camera.Position.z << std::endl;
+    std::cout << "Model scale set to: " << scale << std::endl;
 } 

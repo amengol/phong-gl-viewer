@@ -1,5 +1,6 @@
 #include "model.h"
-#include <stb_image.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
 #include <iostream>
 
 Model::Model(const char* path) {
@@ -9,6 +10,15 @@ Model::Model(const char* path) {
         return;
     }
     m_isValid = loadModel(path);
+}
+
+Model::~Model() {
+    // Clean up textures
+    for (const auto& texture : textures_loaded) {
+        if (texture.id != 0) {
+            glDeleteTextures(1, &texture.id);
+        }
+    }
 }
 
 void Model::Draw(Shader &shader) {
@@ -24,18 +34,26 @@ void Model::Draw(Shader &shader) {
 }
 
 bool Model::loadModel(std::string path) {
-    Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path, 
+    std::cout << "Loading model from path: " << path << std::endl;
+    
+    scene = importer.ReadFile(path, 
         aiProcess_Triangulate | 
         aiProcess_GenNormals | 
         aiProcess_FlipUVs |
-        aiProcess_CalcTangentSpace);
+        aiProcess_CalcTangentSpace |
+        aiProcess_PreTransformVertices |
+        aiProcess_GenUVCoords);  // Add this flag for GLB files
     
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
         std::cerr << "ERROR::ASSIMP::" << importer.GetErrorString() << std::endl;
         return false;
     }
-    directory = path.substr(0, path.find_last_of('/'));
+    
+    // For GLB files, we don't need the directory as textures are embedded
+    directory = "";
+    std::cout << "Number of materials: " << scene->mNumMaterials << std::endl;
+    std::cout << "Number of meshes: " << scene->mNumMeshes << std::endl;
+    std::cout << "Number of embedded textures: " << scene->mNumTextures << std::endl;
 
     try {
         processNode(scene->mRootNode, scene);
@@ -50,6 +68,7 @@ bool Model::loadModel(std::string path) {
         return false;
     }
 
+    std::cout << "Model loaded successfully with " << meshes.size() << " meshes and " << textures_loaded.size() << " textures" << std::endl;
     return true;
 }
 
@@ -66,11 +85,15 @@ void Model::processNode(aiNode *node, const aiScene *scene) {
 }
 
 Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
+    std::cout << "Processing mesh: " << (mesh->mName.length > 0 ? mesh->mName.C_Str() : "unnamed") << std::endl;
+    std::cout << "Has texture coords: " << (mesh->mTextureCoords[0] != nullptr ? "yes" : "no") << std::endl;
+    
     std::vector<Vertex> vertices = getVertices(mesh);
     std::vector<unsigned int> indices = getIndices(mesh);
     std::vector<Texture> textures;
 
     if(mesh->mMaterialIndex >= 0) {
+        std::cout << "Processing material index: " << mesh->mMaterialIndex << std::endl;
         aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
         
         std::vector<Texture> diffuseMaps = loadMaterialTextures(material, 
@@ -80,9 +103,22 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
         std::vector<Texture> specularMaps = loadMaterialTextures(material, 
             aiTextureType_SPECULAR, "texture_specular");
         textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+    } else {
+        std::cout << "Mesh has no material" << std::endl;
     }
     
+    std::cout << "Mesh processed with " << vertices.size() << " vertices, " << indices.size() << " indices, and " << textures.size() << " textures" << std::endl;
     return Mesh(vertices, indices, textures);
+}
+
+void Model::updateBounds(const glm::vec3& point) {
+    minBounds.x = std::min(minBounds.x, point.x);
+    minBounds.y = std::min(minBounds.y, point.y);
+    minBounds.z = std::min(minBounds.z, point.z);
+    
+    maxBounds.x = std::max(maxBounds.x, point.x);
+    maxBounds.y = std::max(maxBounds.y, point.y);
+    maxBounds.z = std::max(maxBounds.z, point.z);
 }
 
 std::vector<Vertex> Model::getVertices(aiMesh *mesh) {
@@ -97,6 +133,9 @@ std::vector<Vertex> Model::getVertices(aiMesh *mesh) {
         vector.y = mesh->mVertices[i].y;
         vector.z = mesh->mVertices[i].z;
         vertex.Position = vector;
+        
+        // Update bounding box
+        updateBounds(vector);
         
         vector.x = mesh->mNormals[i].x;
         vector.y = mesh->mNormals[i].y;
@@ -129,9 +168,13 @@ std::vector<unsigned int> Model::getIndices(aiMesh *mesh) {
 
 std::vector<Texture> Model::loadMaterialTextures(aiMaterial *mat, aiTextureType type, std::string typeName) {
     std::vector<Texture> textures;
-    for(unsigned int i = 0; i < mat->GetTextureCount(type); i++) {
+    unsigned int numTextures = mat->GetTextureCount(type);
+    std::cout << "Loading " << numTextures << " textures of type " << typeName << std::endl;
+    
+    for(unsigned int i = 0; i < numTextures; i++) {
         aiString str;
         mat->GetTexture(type, i, &str);
+        std::cout << "Processing texture path: " << str.C_Str() << std::endl;
         
         // Check if texture was loaded before
         bool skip = false;
@@ -139,6 +182,7 @@ std::vector<Texture> Model::loadMaterialTextures(aiMaterial *mat, aiTextureType 
             if(std::strcmp(textures_loaded[j].path.data(), str.C_Str()) == 0) {
                 textures.push_back(textures_loaded[j]);
                 skip = true;
+                std::cout << "Reusing already loaded texture" << std::endl;
                 break;
             }
         }
@@ -148,18 +192,74 @@ std::vector<Texture> Model::loadMaterialTextures(aiMaterial *mat, aiTextureType 
             texture.type = typeName;
             texture.path = str.C_Str();
             textures.push_back(texture);
-            textures_loaded.push_back(texture);  // Add to loaded textures
+            textures_loaded.push_back(texture);
+            std::cout << "Loaded new texture with ID: " << texture.id << std::endl;
         }
     }
     return textures;
 }
 
 unsigned int Model::TextureFromFile(const char *path, const std::string &directory) {
-    std::string filename = std::string(path);
-    filename = directory + '/' + filename;
-
     unsigned int textureID;
     glGenTextures(1, &textureID);
+
+    // Check if this is an embedded texture (path starts with *)
+    if (path[0] == '*') {
+        // Get the embedded texture index
+        int textureIndex = std::stoi(path + 1);  // Skip the '*' character
+        const aiTexture* texture = scene->mTextures[textureIndex - 1]; // Assimp indices are 1-based
+        
+        std::cout << "Loading embedded texture " << textureIndex << " (format: " << texture->achFormatHint << ")" << std::endl;
+        
+        int width, height, nrComponents;
+        unsigned char* data = nullptr;
+        
+        if (texture->mHeight == 0) {
+            // Compressed texture data
+            if (strncmp(texture->achFormatHint, "png", 3) == 0 ||
+                strncmp(texture->achFormatHint, "jpg", 3) == 0) {
+                // Handle compressed image formats
+                data = stbi_load_from_memory(reinterpret_cast<unsigned char*>(texture->pcData), 
+                                           texture->mWidth, &width, &height, &nrComponents, 4);
+                nrComponents = 4; // Force RGBA
+            } else {
+                std::cout << "Unsupported texture format: " << texture->achFormatHint << std::endl;
+                return textureID;
+            }
+        } else {
+            // Raw texture data
+            width = texture->mWidth;
+            height = texture->mHeight;
+            data = reinterpret_cast<unsigned char*>(texture->pcData);
+            nrComponents = 4; // Assuming RGBA
+        }
+
+        if (data) {
+            glBindTexture(GL_TEXTURE_2D, textureID);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            std::cout << "Embedded texture loaded successfully: " << width << "x" << height 
+                      << " with " << nrComponents << " components" << std::endl;
+
+            if (texture->mHeight == 0) { // Only free if we used stbi_load
+                stbi_image_free(data);
+            }
+        } else {
+            std::cout << "Failed to load embedded texture " << textureIndex << std::endl;
+        }
+        return textureID;
+    }
+
+    // Regular external texture loading
+    std::string filename = std::string(path);
+    filename = directory + '/' + filename;
+    std::cout << "Loading external texture from: " << filename << std::endl;
 
     int width, height, nrComponents;
     unsigned char *data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
@@ -171,6 +271,9 @@ unsigned int Model::TextureFromFile(const char *path, const std::string &directo
             format = GL_RGB;
         else if (nrComponents == 4)
             format = GL_RGBA;
+
+        std::cout << "External texture loaded successfully: " << width << "x" << height 
+                  << " with " << nrComponents << " components" << std::endl;
 
         glBindTexture(GL_TEXTURE_2D, textureID);
         glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
@@ -184,7 +287,7 @@ unsigned int Model::TextureFromFile(const char *path, const std::string &directo
         stbi_image_free(data);
     }
     else {
-        std::cout << "Texture failed to load at path: " << path << std::endl;
+        std::cout << "External texture failed to load at path: " << filename << std::endl;
         stbi_image_free(data);
     }
 

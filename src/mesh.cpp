@@ -35,8 +35,7 @@ void Mesh::Draw(Shader &shader) {
     unsigned int specularNr = 1;
 
     for(unsigned int i = 0; i < textures.size(); i++) {
-        glActiveTexture(GL_TEXTURE0 + i); // activate proper texture unit before binding
-        // retrieve texture number (the N in diffuse_textureN)
+        glActiveTexture(GL_TEXTURE0 + i);
         std::string number;
         std::string name = textures[i].type;
         if(name == "texture_diffuse")
@@ -51,6 +50,6 @@ void Mesh::Draw(Shader &shader) {
 
     // draw mesh
     glBindVertexArray(VAO);
-    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 } 
