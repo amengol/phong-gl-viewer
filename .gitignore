@@ -5,12 +5,16 @@ Debug/
 Release/
 x64/
 x86/
+[Bb]in/
+[Ll]ib/
 
 # CMake
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 *.cmake
+generated/
+*.pc
 
 # IDE specific
 .vs/
@@ -19,6 +23,7 @@ cmake_install.cmake
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
+*.dir/
 
 # Compiled files
 *.o
@@ -29,6 +34,10 @@ cmake_install.cmake
 *.dylib
 *.lib
 *.pdb
+*.ilk
+*.exp
+*.iobj
+*.ipdb
 
 # OS specific
 .DS_Store
