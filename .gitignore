@@ -1,0 +1,42 @@
+# Build directories
+build/
+out/
+Debug/
+Release/
+x64/
+x86/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.cmake
+
+# IDE specific
+.vs/
+.vscode/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.lib
+*.pdb
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Dependencies (since we're using git submodules)
+external/*/
+
+# Temporary files
+*.swp
+*~ 
