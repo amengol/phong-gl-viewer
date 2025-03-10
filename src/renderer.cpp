@@ -61,6 +61,17 @@ void Renderer::Run() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // Check if window is minimized
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+        if (width == 0 || height == 0) {
+            // Even when minimized, we need to render ImGui and swap buffers
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            glfwSwapBuffers(window);
+            continue;
+        }
+
         // Process input after ImGui frame starts
         processInput();
 
@@ -272,6 +283,10 @@ void Renderer::cleanup() {
 }
 
 void Renderer::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
+    // Don't update anything if the window is minimized
+    if (width == 0 || height == 0)
+        return;
+        
     Renderer* renderer = static_cast<Renderer*>(glfwGetWindowUserPointer(window));
     renderer->width = width;
     renderer->height = height;
