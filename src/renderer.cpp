@@ -272,6 +272,9 @@ void Renderer::cleanup() {
 }
 
 void Renderer::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
+    Renderer* renderer = static_cast<Renderer*>(glfwGetWindowUserPointer(window));
+    renderer->width = width;
+    renderer->height = height;
     glViewport(0, 0, width, height);
 }
 
