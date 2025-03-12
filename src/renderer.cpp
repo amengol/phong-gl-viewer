@@ -417,65 +417,52 @@ void Renderer::loadModel(const char* path) {
     glm::vec3 modelSize = model->getSize();
     glm::vec3 modelCenter = model->getCenter();
     
-    // Calculate aspect ratios
-    float screenAspect = static_cast<float>(width) / static_cast<float>(height);
-    float modelAspect = modelSize.x / modelSize.y;
-    
-    // First, determine the target size we want the model to appear in view
-    // Use the diagonal size of the model as a reference
+    // Calculate the diagonal size of the model's bounding box
     float modelDiagonal = glm::length(modelSize);
-    float targetSize = 4.0f; // We want models to fit comfortably in view
-    float scale = targetSize / modelDiagonal;
     
-    // For very small models, ensure they're not too tiny
-    float minScale = 2.0f;
-    scale = std::max(scale, minScale);
+    // We want all models to have roughly the same view size
+    // Let's say we want the model to fit in a 2-unit cube
+    const float TARGET_SIZE = 2.0f;
+    float scale = TARGET_SIZE / modelDiagonal;
     modelScale = glm::vec3(scale);
 
-    // Calculate FOV and distance
-    float desiredFOV = 45.0f; // Base FOV in degrees
-    camera.Zoom = desiredFOV;
+    // Fixed camera parameters
+    const float CAMERA_DISTANCE = 5.0f;  // Fixed distance from origin
+    const float HORIZONTAL_ANGLE = 45.0f; // 45 degrees around Y axis
+    const float VERTICAL_ANGLE = 35.0f;   // 35 degrees up from horizontal
     
-    // Calculate the required distance based on model's diagonal size
-    float distance = modelDiagonal * 1.5f; // Base distance on diagonal for consistency
+    // Calculate fixed camera position using spherical coordinates
+    float horizontalRad = glm::radians(HORIZONTAL_ANGLE);
+    float verticalRad = glm::radians(VERTICAL_ANGLE);
     
-    // Ensure minimum viewing distance
-    float minDistance = 5.0f;
-    distance = std::max(distance, minDistance);
-
-    // Calculate optimal camera position
-    // Position camera higher up and at 45 degrees for better perspective
-    float horizontalAngle = glm::radians(45.0f);
-    float verticalAngle = glm::radians(35.0f); // Higher angle for better overview
-    
-    // Calculate camera position using spherical coordinates
-    camera.Position = modelCenter + distance * glm::vec3(
-        cos(verticalAngle) * cos(horizontalAngle),
-        sin(verticalAngle),
-        cos(verticalAngle) * sin(horizontalAngle)
+    // Position camera
+    camera.Position = glm::vec3(
+        CAMERA_DISTANCE * cos(verticalRad) * cos(horizontalRad),
+        CAMERA_DISTANCE * sin(verticalRad),
+        CAMERA_DISTANCE * cos(verticalRad) * sin(horizontalRad)
     );
 
-    // Calculate camera orientation to look at center
-    glm::vec3 direction = modelCenter - camera.Position;
-    float yaw = glm::degrees(atan2(direction.z, direction.x));
-    float pitch = glm::degrees(asin(direction.y / glm::length(direction)));
+    // Calculate direction to origin (where our scaled model will be)
+    glm::vec3 direction = glm::normalize(-camera.Position); // Look at origin (0,0,0)
+    
+    // Calculate yaw and pitch from direction vector
+    camera.Yaw = glm::degrees(atan2(direction.z, direction.x));
+    camera.Pitch = glm::degrees(asin(direction.y));
     
     // Set camera parameters
     camera.WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-    camera.Yaw = yaw;
-    camera.Pitch = pitch;
+    camera.Zoom = 45.0f; // Fixed FOV
     camera.updateCameraVectors();
 
-    // Position light relative to model bounds
-    lightPos = modelCenter + glm::vec3(
-        modelSize.x * 0.5f,
-        modelSize.y * 2.0f,
-        modelSize.z * 0.5f
+    // Position light relative to camera distance
+    lightPos = glm::vec3(
+        CAMERA_DISTANCE * 0.5f,
+        CAMERA_DISTANCE * 1.0f,
+        CAMERA_DISTANCE * 0.5f
     );
     
     // Debug output
     std::cout << "Model diagonal size: " << modelDiagonal << std::endl;
     std::cout << "Applied scale: " << scale << std::endl;
-    std::cout << "Camera distance: " << distance << std::endl;
-    std::cout << "Camera position: " << camera.Position.x << ", " << camera.Position.y << ", " << camera.Position.z << std::endl;
+    std::cout << "Camera distance: " << CAMERA_DISTANCE << std::endl;
 } 
