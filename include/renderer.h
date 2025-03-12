@@ -27,7 +27,7 @@ private:
     Model* model = nullptr;
     Shader* shader;
     glm::vec3 modelScale;  // Store model scale factor
-
+    
     // Lighting properties
     glm::vec3 lightPos;
     glm::vec3 lightColor;

@@ -90,6 +90,7 @@ void Renderer::Run() {
         // World transformation
         glm::mat4 modelMatrix = glm::mat4(1.0f);
         if (model != nullptr) {
+            // Apply scale
             modelMatrix = glm::scale(modelMatrix, modelScale);
             // Center the model
             modelMatrix = glm::translate(modelMatrix, -model->getCenter());
@@ -300,6 +301,9 @@ void Renderer::mouseButtonCallback(GLFWwindow* window, int button, int action, i
     // Update ImGui's mouse button state
     if (action == GLFW_PRESS && button >= 0 && button < 5) {
         io.MouseDown[button] = true;
+        if (!io.WantCaptureMouse) {
+            renderer->firstMouse = true; // Reset first mouse on button press
+        }
     }
     else if (action == GLFW_RELEASE && button >= 0 && button < 5) {
         io.MouseDown[button] = false;
@@ -318,12 +322,6 @@ void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
         return;
     }
 
-    // Only process camera movement if right mouse button is pressed
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) != GLFW_PRESS) {
-        renderer->firstMouse = true;
-        return;
-    }
-
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
@@ -335,12 +333,61 @@ void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
     }
 
     float xoffset = xpos - renderer->lastX;
-    float yoffset = renderer->lastY - ypos;
+    float yoffset = renderer->lastY - ypos; // Reversed since y-coordinates range from bottom to top
 
     renderer->lastX = xpos;
     renderer->lastY = ypos;
 
-    renderer->camera.ProcessMouseMovement(xoffset, yoffset);
+    // Left mouse button - Orbit camera around model
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && renderer->model != nullptr) {
+        const float orbitSensitivity = 0.25f;
+        
+        // Get the model center
+        glm::vec3 modelCenter = renderer->model->getCenter();
+        
+        // Calculate current camera-to-center vector
+        glm::vec3 toCenter = modelCenter - renderer->camera.Position;
+        float radius = glm::length(toCenter);
+        
+        // Calculate current spherical coordinates
+        float currentPitch = glm::degrees(asin(toCenter.y / radius));
+        float currentYaw = glm::degrees(atan2(toCenter.z, toCenter.x));
+        
+        // Update angles
+        currentYaw += xoffset * orbitSensitivity;
+        currentPitch += yoffset * orbitSensitivity;
+        
+        // Constrain the pitch angle
+        if (currentPitch > 89.0f)
+            currentPitch = 89.0f;
+        if (currentPitch < -89.0f)
+            currentPitch = -89.0f;
+        
+        // Convert back to Cartesian coordinates
+        float pitchRad = glm::radians(currentPitch);
+        float yawRad = glm::radians(currentYaw);
+        
+        // Calculate new camera position
+        renderer->camera.Position = modelCenter - radius * glm::vec3(
+            cos(pitchRad) * cos(yawRad),
+            sin(pitchRad),
+            cos(pitchRad) * sin(yawRad)
+        );
+        
+        // Update camera orientation
+        renderer->camera.Pitch = currentPitch;
+        renderer->camera.Yaw = currentYaw;
+        
+        // Make sure camera looks at model center
+        glm::vec3 direction = glm::normalize(modelCenter - renderer->camera.Position);
+        renderer->camera.Front = direction;
+        renderer->camera.Right = glm::normalize(glm::cross(direction, renderer->camera.WorldUp));
+        renderer->camera.Up = glm::normalize(glm::cross(renderer->camera.Right, direction));
+    }
+    // Right mouse button - Pan camera
+    else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS && renderer->model != nullptr) {
+        renderer->camera.ProcessMousePan(xoffset, yoffset);
+    }
 }
 
 void Renderer::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
