@@ -154,7 +154,7 @@ void Renderer::initGLAD() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // Create and compile shaders
-    shader = new Shader("shaders/phong.vert", "shaders/phong.frag");
+    shader = std::make_unique<Shader>("shaders/phong.vert", "shaders/phong.frag");
 }
 
 void Renderer::initImGui() {
@@ -311,9 +311,6 @@ void Renderer::cleanup() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    delete shader;
-    delete model;
-
     glfwDestroyWindow(window);
     glfwTerminate();
 }
@@ -439,19 +436,12 @@ void Renderer::scrollCallback(GLFWwindow* window, double xoffset, double yoffset
 }
 
 void Renderer::loadModel(const char* path) {
-    // Delete existing model if any
-    if (model != nullptr) {
-        delete model;
-        model = nullptr;
-    }
-
-    // Create new model
-    model = new Model(path);
+    // No need to manually delete the old model, unique_ptr handles it
+    model = std::make_unique<Model>(path);
     
     // Check if model loaded successfully
     if (!model->isValid()) {
-        delete model;
-        model = nullptr;
+        model = nullptr;  // Reset the unique_ptr
         std::cerr << "ERROR::RENDERER: Failed to load model from path: " << path << std::endl;
         return;
     }

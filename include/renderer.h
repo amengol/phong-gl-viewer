@@ -12,6 +12,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include <memory>
 
 class Renderer {
 public:
@@ -24,8 +25,8 @@ public:
 private:
     GLFWwindow* window;
     Camera camera;
-    Model* model = nullptr;
-    Shader* shader;
+    std::unique_ptr<Model> model;
+    std::unique_ptr<Shader> shader;
     glm::vec3 modelScale;  // Store model scale factor
     glm::vec3 rotationCenter;  // Point to orbit around
     bool updateRotationCenter;  // Flag to update rotation center
