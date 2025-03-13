@@ -162,6 +162,9 @@ void Renderer::initImGui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     
+    // Enable saving window positions to imgui.ini
+    io.IniFilename = "imgui.ini";  // Default filename for settings
+    
     // Enable keyboard navigation
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
@@ -284,7 +287,7 @@ void Renderer::renderUI() {
 
     // Lighting controls window
     {
-        ImGui::SetNextWindowPos(ImVec2(10, 120), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(10, 100), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_FirstUseEver);
         ImGui::Begin("Lighting Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         
