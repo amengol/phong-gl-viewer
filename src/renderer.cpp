@@ -255,12 +255,12 @@ void Renderer::renderUI() {
         // Add Reset Camera button
         if (ImGui::Button("Reset Camera", ImVec2(120, 0)) && model != nullptr) {
             // Reset camera to initial position
-            const float CAMERA_DISTANCE = 5.0f;
-            const float HORIZONTAL_ANGLE = 45.0f;
-            const float VERTICAL_ANGLE = 35.0f;
+            constexpr float CAMERA_DISTANCE = 5.0f;
+            constexpr float HORIZONTAL_ANGLE = 45.0f;
+            constexpr float VERTICAL_ANGLE = 35.0f;
             
-            float horizontalRad = glm::radians(HORIZONTAL_ANGLE);
-            float verticalRad = glm::radians(VERTICAL_ANGLE);
+            constexpr float horizontalRad = glm::radians(HORIZONTAL_ANGLE);
+            constexpr float verticalRad = glm::radians(VERTICAL_ANGLE);
             
             // Reset camera position
             camera.Position = glm::vec3(
@@ -470,13 +470,13 @@ void Renderer::loadModel(const char* path) {
     modelScale = glm::vec3(scale);
 
     // Fixed camera parameters
-    const float CAMERA_DISTANCE = 5.0f;  // Fixed distance from origin
-    const float HORIZONTAL_ANGLE = 45.0f; // 45 degrees around Y axis
-    const float VERTICAL_ANGLE = 35.0f;   // 35 degrees up from horizontal
+    constexpr float CAMERA_DISTANCE = 5.0f;  // Fixed distance from origin
+    constexpr float HORIZONTAL_ANGLE = 45.0f; // 45 degrees around Y axis
+    constexpr float VERTICAL_ANGLE = 35.0f;   // 35 degrees up from horizontal
     
     // Calculate fixed camera position using spherical coordinates
-    float horizontalRad = glm::radians(HORIZONTAL_ANGLE);
-    float verticalRad = glm::radians(VERTICAL_ANGLE);
+    constexpr float horizontalRad = glm::radians(HORIZONTAL_ANGLE);
+    constexpr float verticalRad = glm::radians(VERTICAL_ANGLE);
     
     // Position camera
     camera.Position = glm::vec3(
