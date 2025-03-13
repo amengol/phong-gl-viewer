@@ -18,6 +18,8 @@ Renderer::Renderer(int width, int height, const char* title)
       shininess(32.0f),
       model(nullptr),
       modelScale(glm::vec3(1.0f)),
+      rotationCenter(glm::vec3(0.0f)),
+      updateRotationCenter(true),
       shader(nullptr) { // Initialize shader pointer to nullptr
     
     initGLFW();
@@ -340,13 +342,18 @@ void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
 
     // Left mouse button - Orbit camera around model
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && renderer->model != nullptr) {
+        // When starting to orbit, update the rotation center
+        if (renderer->updateRotationCenter) {
+            // Calculate the point we're looking at based on current camera position and direction
+            float distance = glm::length(renderer->camera.Position); // Use current distance as depth
+            renderer->rotationCenter = renderer->camera.Position + renderer->camera.Front * distance;
+            renderer->updateRotationCenter = false;
+        }
+
         const float orbitSensitivity = 0.25f;
         
-        // Get the model center
-        glm::vec3 modelCenter = renderer->model->getCenter();
-        
         // Calculate current camera-to-center vector
-        glm::vec3 toCenter = modelCenter - renderer->camera.Position;
+        glm::vec3 toCenter = renderer->rotationCenter - renderer->camera.Position;
         float radius = glm::length(toCenter);
         
         // Calculate current spherical coordinates
@@ -368,25 +375,28 @@ void Renderer::mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
         float yawRad = glm::radians(currentYaw);
         
         // Calculate new camera position
-        renderer->camera.Position = modelCenter - radius * glm::vec3(
+        renderer->camera.Position = renderer->rotationCenter - radius * glm::vec3(
             cos(pitchRad) * cos(yawRad),
             sin(pitchRad),
             cos(pitchRad) * sin(yawRad)
         );
         
-        // Update camera orientation
-        renderer->camera.Pitch = currentPitch;
-        renderer->camera.Yaw = currentYaw;
-        
-        // Make sure camera looks at model center
-        glm::vec3 direction = glm::normalize(modelCenter - renderer->camera.Position);
+        // Make sure camera looks at rotation center
+        glm::vec3 direction = glm::normalize(renderer->rotationCenter - renderer->camera.Position);
         renderer->camera.Front = direction;
         renderer->camera.Right = glm::normalize(glm::cross(direction, renderer->camera.WorldUp));
         renderer->camera.Up = glm::normalize(glm::cross(renderer->camera.Right, direction));
     }
     // Right mouse button - Pan camera
     else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS && renderer->model != nullptr) {
-        renderer->camera.ProcessMousePan(xoffset, yoffset);
+        const float panSensitivity = 0.005f;
+        glm::vec3 offset = -renderer->camera.Right * xoffset * panSensitivity - renderer->camera.Up * yoffset * panSensitivity;
+        renderer->camera.Position += offset;
+        renderer->updateRotationCenter = true; // Need to update rotation center next time we start orbiting
+    }
+    // If no buttons are pressed, we'll need to update rotation center next time
+    else {
+        renderer->updateRotationCenter = true;
     }
 }
 
