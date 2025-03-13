@@ -248,6 +248,36 @@ void Renderer::renderUI() {
         } else {
             ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Loaded: %s", model->getFilename().c_str());
         }
+
+        // Add Reset Camera button
+        if (ImGui::Button("Reset Camera", ImVec2(120, 0)) && model != nullptr) {
+            // Reset camera to initial position
+            const float CAMERA_DISTANCE = 5.0f;
+            const float HORIZONTAL_ANGLE = 45.0f;
+            const float VERTICAL_ANGLE = 35.0f;
+            
+            float horizontalRad = glm::radians(HORIZONTAL_ANGLE);
+            float verticalRad = glm::radians(VERTICAL_ANGLE);
+            
+            // Reset camera position
+            camera.Position = glm::vec3(
+                CAMERA_DISTANCE * cos(verticalRad) * cos(horizontalRad),
+                CAMERA_DISTANCE * sin(verticalRad),
+                CAMERA_DISTANCE * cos(verticalRad) * sin(horizontalRad)
+            );
+
+            // Reset rotation center to origin
+            rotationCenter = glm::vec3(0.0f);
+            updateRotationCenter = true;
+
+            // Reset camera orientation
+            glm::vec3 direction = glm::normalize(-camera.Position);
+            camera.Yaw = glm::degrees(atan2(direction.z, direction.x));
+            camera.Pitch = glm::degrees(asin(direction.y));
+            camera.WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+            camera.Zoom = 45.0f;
+            camera.updateCameraVectors();
+        }
         
         ImGui::End();
     }
