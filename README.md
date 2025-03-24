@@ -1,5 +1,7 @@
 # 3D Model Viewer with Phong Shading
 
+![3D Model Viewer Demo](ui-demo.gif)
+
 A modern OpenGL-based 3D model viewer with Phong shading and interactive controls. This project demonstrates various computer graphics concepts including:
 
 - Modern OpenGL usage with GLFW and GLAD
@@ -89,4 +91,4 @@ All dependencies are automatically downloaded and built by CMake:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
