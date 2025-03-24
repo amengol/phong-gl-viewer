@@ -13,6 +13,7 @@ add_subdirectory(external/glm)
 # Assimp
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)  # Build static library
 add_subdirectory(external/assimp)
 
 # ImGui
@@ -50,11 +51,15 @@ set(HEADERS
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
+# Make sure assimp is built before our project
+add_dependencies(${PROJECT_NAME} assimp)
+
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     external/glm
     external/assimp/include
+    ${CMAKE_BINARY_DIR}/external/assimp/include
     external/imgui
     external/imgui/backends
 )
